@@ -90,6 +90,7 @@ COPY --from=builder /app/server/dist ./app/server/dist
 # Define non-sudo user
 RUN useradd --create-home appuser \
     && chown -R appuser:0 /app \
+    && chmod u+x /app \
     && chmod -R g=u /app
 USER appuser
 
