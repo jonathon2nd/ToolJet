@@ -27,7 +27,6 @@ import { tooljetDbOperations } from '@/Editor/QueryManager/QueryEditors/TooljetD
 import { authenticationService } from '@/_services/authentication.service';
 import { setCookie } from '@/_helpers/cookie';
 import { DataSourceTypes } from '@/Editor/DataSourceManager/SourceComponents';
-import { flushSync } from 'react-dom'; // TODO: It can be removed once we've a proper state update flow
 
 import { useDataQueriesStore } from '@/_stores/dataQueriesStore';
 
@@ -348,8 +347,7 @@ function showModal(_ref, modal, show) {
 
 function logoutAction(_ref) {
   localStorage.clear();
-  _ref.props.navigate('/login');
-  window.location.href = '/login';
+  authenticationService.logout(true);
 
   return Promise.resolve();
 }
@@ -755,6 +753,7 @@ export async function onEvent(_ref, eventName, options, mode = 'edit') {
       'onRowHovered',
       'onSubmit',
       'onInvalid',
+      'onNewRowsAdded',
     ].includes(eventName)
   ) {
     const { component } = options;
@@ -901,24 +900,22 @@ export function runQuery(_ref, queryId, queryName, confirmed = undefined, mode =
   const options = getQueryVariables(dataQuery.options, _ref.state.currentState);
 
   if (dataQuery.options.requestConfirmation) {
-    flushSync(() => {
-      // eslint-disable-next-line no-unsafe-optional-chaining
-      const queryConfirmationList = _ref.state?.queryConfirmationList ? [..._ref.state?.queryConfirmationList] : [];
-      const queryConfirmation = {
-        queryId,
-        queryName,
-      };
-      if (!queryConfirmationList.some((query) => queryId === query.queryId)) {
-        queryConfirmationList.push(queryConfirmation);
-      }
+    // eslint-disable-next-line no-unsafe-optional-chaining
+    const queryConfirmationList = _ref.state?.queryConfirmationList ? [..._ref.state?.queryConfirmationList] : [];
+    const queryConfirmation = {
+      queryId,
+      queryName,
+    };
+    if (!queryConfirmationList.some((query) => queryId === query.queryId)) {
+      queryConfirmationList.push(queryConfirmation);
+    }
 
-      if (confirmed === undefined) {
-        _ref.setState({
-          queryConfirmationList,
-        });
-        return;
-      }
-    });
+    if (confirmed === undefined) {
+      _ref.setState({
+        queryConfirmationList,
+      });
+      return;
+    }
   }
   const newState = {
     ..._ref.state.currentState,
@@ -971,51 +968,48 @@ export function runQuery(_ref, queryId, queryName, confirmed = undefined, mode =
 
           if (promiseStatus === 'failed' || promiseStatus === 'Bad Request') {
             const errorData = query.kind === 'runpy' ? data.data : data;
-            flushSync(() => {
-              return _self.setState(
-                {
-                  currentState: {
-                    ..._self.state.currentState,
-                    queries: {
-                      ..._self.state.currentState.queries,
-                      [queryName]: _.assign(
-                        {
-                          ..._self.state.currentState.queries[queryName],
-                          isLoading: false,
-                        },
-                        query.kind === 'restapi'
-                          ? {
-                              request: data.data.requestObject,
-                              response: data.data.responseObject,
-                              responseHeaders: data.data.responseHeaders,
-                            }
-                          : {}
-                      ),
-                    },
-                    errors: {
-                      ..._self.state.currentState.errors,
-                      [queryName]: {
-                        type: 'query',
-                        kind: query.kind,
-                        data: errorData,
-                        options: options,
+            return _self.setState(
+              {
+                currentState: {
+                  ..._self.state.currentState,
+                  queries: {
+                    ..._self.state.currentState.queries,
+                    [queryName]: _.assign(
+                      {
+                        ..._self.state.currentState.queries[queryName],
+                        isLoading: false,
                       },
+                      query.kind === 'restapi'
+                        ? {
+                            request: data.data.requestObject,
+                            response: data.data.responseObject,
+                            responseHeaders: data.data.responseHeaders,
+                          }
+                        : {}
+                    ),
+                  },
+                  errors: {
+                    ..._self.state.currentState.errors,
+                    [queryName]: {
+                      type: 'query',
+                      kind: query.kind,
+                      data: errorData,
+                      options: options,
                     },
                   },
                 },
-                () => {
-                  resolve(data);
-                  onEvent(_self, 'onDataQueryFailure', {
-                    definition: { events: dataQuery.options.events },
-                  });
-                  if (mode !== 'view') {
-                    const err =
-                      query.kind == 'tooljetdb' ? data?.error || data : _.isEmpty(data.data) ? data : data.data;
-                    toast.error(err?.message);
-                  }
+              },
+              () => {
+                resolve(data);
+                onEvent(_self, 'onDataQueryFailure', {
+                  definition: { events: dataQuery.options.events },
+                });
+                if (mode !== 'view') {
+                  const err = query.kind == 'tooljetdb' ? data?.error || data : _.isEmpty(data.data) ? data : data.data;
+                  toast.error(err?.message);
                 }
-              );
-            });
+              }
+            );
           } else {
             let rawData = data.data;
             let finalData = data.data;
@@ -1030,36 +1024,34 @@ export function runQuery(_ref, queryId, queryName, confirmed = undefined, mode =
                 'edit'
               );
               if (finalData.status === 'failed') {
-                flushSync(() => {
-                  return _self.setState(
-                    {
-                      currentState: {
-                        ..._self.state.currentState,
-                        queries: {
-                          ..._self.state.currentState.queries,
-                          [queryName]: {
-                            ..._self.state.currentState.queries[queryName],
-                            isLoading: false,
-                          },
+                return _self.setState(
+                  {
+                    currentState: {
+                      ..._self.state.currentState,
+                      queries: {
+                        ..._self.state.currentState.queries,
+                        [queryName]: {
+                          ..._self.state.currentState.queries[queryName],
+                          isLoading: false,
                         },
-                        errors: {
-                          ..._self.state.currentState.errors,
-                          [queryName]: {
-                            type: 'transformations',
-                            data: finalData,
-                            options: options,
-                          },
+                      },
+                      errors: {
+                        ..._self.state.currentState.errors,
+                        [queryName]: {
+                          type: 'transformations',
+                          data: finalData,
+                          options: options,
                         },
                       },
                     },
-                    () => {
-                      resolve(finalData);
-                      onEvent(_self, 'onDataQueryFailure', {
-                        definition: { events: dataQuery.options.events },
-                      });
-                    }
-                  );
-                });
+                  },
+                  () => {
+                    resolve(finalData);
+                    onEvent(_self, 'onDataQueryFailure', {
+                      definition: { events: dataQuery.options.events },
+                    });
+                  }
+                );
               }
             }
 
@@ -1069,65 +1061,61 @@ export function runQuery(_ref, queryId, queryName, confirmed = undefined, mode =
                 duration: notificationDuration,
               });
             }
-            flushSync(() => {
-              _self.setState(
-                {
-                  currentState: {
-                    ..._self.state.currentState,
-                    queries: {
-                      ..._self.state.currentState.queries,
-                      [queryName]: _.assign(
-                        {
-                          ..._self.state.currentState.queries[queryName],
-                          isLoading: false,
-                          data: finalData,
-                          rawData,
-                        },
-                        query.kind === 'restapi'
-                          ? {
-                              request: data.request,
-                              response: data.response,
-                              responseHeaders: data.responseHeaders,
-                            }
-                          : {}
-                      ),
-                    },
-                  },
-                },
-                () => {
-                  resolve({ status: 'ok', data: finalData });
-                  onEvent(_self, 'onDataQuerySuccess', { definition: { events: dataQuery.options.events } }, mode);
-
-                  if (mode !== 'view') {
-                    toast(`Query (${queryName}) completed.`, {
-                      icon: '🚀',
-                    });
-                  }
-                }
-              );
-            });
-          }
-        })
-        .catch(({ error }) => {
-          if (mode !== 'view') toast.error(error ?? 'Unknown error');
-          flushSync(() => {
             _self.setState(
               {
                 currentState: {
                   ..._self.state.currentState,
                   queries: {
                     ..._self.state.currentState.queries,
-                    [queryName]: {
-                      isLoading: false,
-                    },
+                    [queryName]: _.assign(
+                      {
+                        ..._self.state.currentState.queries[queryName],
+                        isLoading: false,
+                        data: finalData,
+                        rawData,
+                      },
+                      query.kind === 'restapi'
+                        ? {
+                            request: data.request,
+                            response: data.response,
+                            responseHeaders: data.responseHeaders,
+                          }
+                        : {}
+                    ),
                   },
                 },
               },
               () => {
-                resolve({ status: 'failed', message: error });
+                resolve({ status: 'ok', data: finalData });
+                onEvent(_self, 'onDataQuerySuccess', { definition: { events: dataQuery.options.events } }, mode);
+
+                if (mode !== 'view') {
+                  toast(`Query (${queryName}) completed.`, {
+                    icon: '🚀',
+                  });
+                }
               }
             );
-          });
+          }
+        })
+        .catch(({ error }) => {
+          if (mode !== 'view') toast.error(error ?? 'Unknown error');
+          _self.setState(
+            {
+              currentState: {
+                ..._self.state.currentState,
+                queries: {
+                  ..._self.state.currentState.queries,
+                  [queryName]: {
+                    isLoading: false,
+                  },
+                },
+              },
+            },
+            () => {
+              resolve({ status: 'failed', message: error });
+            }
+          );
         });
     });
   });
