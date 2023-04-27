@@ -48,8 +48,11 @@ function buildPostgrestQuery(filters) {
       }
     }
   });
-
-  return postgrestQueryBuilder.url.toString();
+  let whereQuery = postgrestQueryBuilder.url.toString();
+  // if (whereQuery && whereQuery.includes('nulltest=isNotNull')) {
+  //   whereQuery = whereQuery.replace('nulltest=isNotNull', 'nulltest=not.is.null');
+  // }
+  return whereQuery;
 }
 
 async function listRows(queryOptions, organizationId, currentState) {
